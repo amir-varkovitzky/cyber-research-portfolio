@@ -7,8 +7,6 @@
 
 # Don't ignore directories
 !*/
-# Ignore myenv directory
-myenv/
 
 # Don't ignore dummy files
 !**/dummy.md
@@ -60,3 +58,6 @@ myenv/
 # Don't ignore specific project artifacts
 !projects/Ext2Parser/ext2.img
 !**/*.creds.example
+
+# Ignore env directory
+env/
