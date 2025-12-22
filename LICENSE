@@ -1,0 +1,33 @@
+Copyright (c) 2025 Amir Varkovitzky
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to do
+almost anything they want with it, including (but not limited to) using,
+copying, modifying, merging, publishing, distributing, sublicensing, and/or
+selling copies of the Software, and to permit others to do so, subject to the
+following conditions:
+
+1. The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
+2. If the Software causes your computer to become sentient, you must teach it to code in C.
+3. If you find a bug, you are encouraged (but not required) to blame cosmic rays.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-SEGFAULT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Addendum
+
+By using this code, you agree to:
+
+- Blame all bugs on cosmic rays, quantum fluctuations, or the phase of the moon.
+- Credit the author for all segfaults, but none of the working features.
+- Never ask “Why C?” in a job interview (or at family dinners).
+- Remember: If it compiles, ship it. If it doesn’t, blame the makefile.
+- If you actually read this license, treat yourself to a coffee—you’ve earned it.
