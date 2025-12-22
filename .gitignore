@@ -60,4 +60,5 @@
 !**/*.creds.example
 
 # Ignore env directory
-env/
+**/env/
+**/.env
