@@ -11,6 +11,24 @@ A robust, secure, and lightweight VPN implementation using Linux TUN/TAP interfa
 *   **Robustness**: Handles packet loss, reordering, and graceful shutdowns.
 *   **Scripts**: Helper scripts for easy network configuration and teardown.
 
+## Key Design Insights
+
+### 1. The TCP Meltdown Problem (Why UDP?)
+This VPN uses **UDP** for the transport layer. Tunneling IP over TCP (TCP-over-TCP) is widely considered a bad practice due to "TCP Meltdown".
+*   **Packet Loss**: If the outer TCP connection loses a packet, it retransmits.
+*   **Latency Spike**: The inner TCP connection sees this delay and assumes congestion, backing off its transmission window.
+*   **Result**: Performance collapses exponentially. UDP prevents this by allowing the inner TCP sessions to handle their own congestion control naturally.
+
+### 2. TUN vs TAP (Layer 3 vs Layer 2)
+We utilize **TUN (Layer 3)** interfaces instead of TAP (Layer 2).
+*   **Efficiency**: TUN devices carry only IP packets, stripping unnecessary Ethernet headers (MAC addresses).
+*   **Scalability**: Avoids the "chatter" of ARP broadcasts and other Layer 2 noise, making it more efficient for point-to-point VPN links unless legacy non-IP protocols (like IPX) are needed.
+
+### 3. Authenticated Encryption (AEAD)
+The protocol strictly uses **AES-256-GCM**.
+*   **Integrity + Confidentiality**: Traditional encryption (CBC) only hides data. AEAD ensures that if an attacker modifies even a single bit of the encrypted ciphertext, the packet is rejected instantly (Tag Mismatch).
+*   **Security**: This prevents padding oracle attacks and ensures no chosen-ciphertext attacks can tamper with the tunnel command stream.
+
 ## Directory Structure
 
 *   `src/`: Source code.
