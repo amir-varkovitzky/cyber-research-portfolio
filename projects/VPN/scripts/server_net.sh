@@ -3,6 +3,10 @@
 # Usage: server_net.sh [--if <tun>] [--pub-if <iface>] [--ip <ip>] [--net <net>] [--mtu <mtu>]
 set -euo pipefail
 
+# Get absolute path to script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/lib/common.sh"
+
 usage() {
   echo "Usage: $0 [--if <tun>] [--pub-if <iface>] [--ip <ip>] [--net <net>] [--mtu <mtu>]"
   echo "  --if <tun>      TUN device name (default: tun0)"
@@ -31,33 +35,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-log() { echo "[server_net] $*"; }
-
-if ! command -v ip &>/dev/null; then log "Missing 'ip' command"; exit 2; fi
-if ! command -v iptables &>/dev/null; then log "Missing 'iptables' command"; exit 2; fi
+check_deps ip iptables
 
 log "Setting up $IF as $VPN_IP, NAT via $PUB_IF, subnet $VPN_NET, MTU $MTU"
 
-if ! ip link show "$IF" &>/dev/null; then
-  sudo ip tuntap add dev "$IF" mode tun
-  log "Created TUN device $IF"
-fi
-
-if ! ip addr show "$IF" | grep -q "${VPN_IP%%/*}"; then
-  sudo ip addr add "$VPN_IP" dev "$IF"
-  log "Assigned IP $VPN_IP to $IF"
-fi
-
-sudo ip link set "$IF" up
-sudo ip link set "$IF" mtu "$MTU"
-log "Set $IF up and MTU $MTU"
+ensure_tun "$IF"
+ensure_ip "$IF" "$VPN_IP"
+set_mtu_up "$IF" "$MTU"
 
 sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null
 log "Enabled IPv4 forwarding"
 
 if ! sudo iptables -t nat -C POSTROUTING -s "$VPN_NET" -o "$PUB_IF" -j MASQUERADE 2>/dev/null; then
-  sudo iptables -t nat -A POSTROUTING -s "$VPN_NET" -o "$PUB_IF" -j MASQUERADE
-  log "Added NAT MASQUERADE rule for $VPN_NET via $PUB_IF"
+  if sudo iptables -t nat -A POSTROUTING -s "$VPN_NET" -o "$PUB_IF" -j MASQUERADE; then
+      log "Added NAT MASQUERADE rule for $VPN_NET via $PUB_IF"
+  else
+      log "Error: Failed to add NAT rule"
+      exit 1
+  fi
 else
   log "NAT MASQUERADE rule already exists"
 fi

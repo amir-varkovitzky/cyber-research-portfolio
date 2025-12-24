@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <signal.h>
 #include "../common/tun.h"
 #include "../common/udp.h"
 #include "../common/aead.h"
@@ -97,12 +98,28 @@ static bool replay_ok(client_t *c, uint64_t ctr)
     }
 }
 
+/* Global running flag for signal handler */
+static volatile bool running = true;
+
+static void handle_signal(int sig)
+{
+    (void)sig;
+    running = false;
+}
+
 int main(void)
 {
     int tun_fd = -1, udp_fd = -1;
     struct pollfd pfds[2];
     uint8_t inbuf[MAXPKT], outbuf[MAXPKT];
     const char *psk_path = getenv("AVPN_PSK_FILE");
+
+    /* Signal handling */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_signal;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
 
     if (!psk_path || strlen(psk_path) == 0)
     {
@@ -154,11 +171,13 @@ int main(void)
     printf("[debug] Starting VPN server loop\n");
     printf("[debug] UDP fd: %d, TUN fd: %d\n", udp_fd, tun_fd);
     fflush(stdout);
-    for (;;)
+    
+    while (running)
     {
-        int poll_result = poll(pfds, 2, -1);
+        int poll_result = poll(pfds, 2, 1000); /* 1 sec timeout to check running */
         if (poll_result < 0)
         {
+            if (!running) break; /* Interrupted by signal */
             perror("poll");
             break;
         }
@@ -297,6 +316,7 @@ int main(void)
         }
     }
 
+    printf("[info] Server shutting down\n");
     secure_memzero(psk, sizeof(psk));
     close(udp_fd);
     close(tun_fd);

@@ -3,6 +3,10 @@
 # Usage: client_net.sh [--if <tun>] [--ip <virt_ip>] [--mtu <mtu>] [--net <net>] [--server <server_ip>]
 set -euo pipefail
 
+# Get absolute path to script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/lib/common.sh"
+
 usage() {
 	echo "Usage: $0 [--if <tun>] [--ip <virt_ip>] [--mtu <mtu>] [--net <net>] [--server <server_ip>]"
 	echo "  --if <tun>      TUN device name (default: tun0)"
@@ -31,29 +35,20 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-log() { echo "[client_net] $*"; }
-
-if ! command -v ip &>/dev/null; then log "Missing 'ip' command"; exit 2; fi
+check_deps ip
 
 log "Setting up $IF as $VIP/24, subnet $VPN_NET, MTU $MTU, server $SERVER"
 
-if ! ip link show "$IF" &>/dev/null; then
-	sudo ip tuntap add dev "$IF" mode tun
-	log "Created TUN device $IF"
-fi
-
-if ! ip addr show "$IF" | grep -q "${VIP}"; then
-	sudo ip addr add "$VIP/24" dev "$IF"
-	log "Assigned IP $VIP/24 to $IF"
-fi
-
-sudo ip link set "$IF" up
-sudo ip link set "$IF" mtu "$MTU"
-log "Set $IF up and MTU $MTU"
+ensure_tun "$IF"
+ensure_ip "$IF" "$VIP/24"
+set_mtu_up "$IF" "$MTU"
 
 if ! ip route show | grep -q "$VPN_NET"; then
-	sudo ip route add "$VPN_NET" dev "$IF"
-	log "Added route for $VPN_NET via $IF"
+	if sudo ip route add "$VPN_NET" dev "$IF"; then
+		log "Added route for $VPN_NET via $IF"
+	else
+		log "Error: Failed to add route for $VPN_NET"
+	fi
 fi
 
 # Optional full-tunnel routes via server

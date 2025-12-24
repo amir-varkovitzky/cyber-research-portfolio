@@ -1,8 +1,8 @@
 # Cyber Research Portfolio
 
-Welcome to my Cyber Research Portfolio. This repository showcases advanced system programming projects, specialized C2 frameworks, and network security research.
+This repository showcases system programming projects, C2 frameworks, and network security tools.
 
-It demonstrates proficiency in low-level C programming, Python network automation, and operating system internals.
+It demonstrates proficiency in low-level C programming, operating system internals, network security, and Python network automation.
 
 ## 📂 Projects
 
@@ -27,7 +27,7 @@ Advanced utilities for network reconnaissance and packet manipulation.
 - **[DNS Enumerator](tools/network/dns_enumeration.py)**: Subdomain discovery utility.
 
 ### Misc
-- **[Brute Force](tools/misc)**: Multithreaded login brute-forcing script.
+- **[Brute Force](tools/misc)**: brute-forcing performance analysis.
 
 ---
 

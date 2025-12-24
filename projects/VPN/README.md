@@ -1,164 +1,112 @@
+# VPN Project
 
-# C99 VPN (TUN + UDP + AES‑256‑GCM) — Secure, Modular, and Easy to Deploy
+A robust, secure, and lightweight VPN implementation using Linux TUN/TAP interfaces and custom UDP protocol with AES-256-GCM encryption.
 
-This project is a NASA-style, from-scratch VPN in **C99** using Linux **TUN** (Layer‑3) and **UDP** transport, with **AES‑256‑GCM** (OpenSSL EVP) for authenticated encryption. The code is modular, robust, and easy to deploy, with strict security and code quality standards.
+## Features
 
----
+*   **Security**: Authenticated Encryption with Associated Data (AEAD) using AES-256-GCM (OpenSSL).
+*   **Replay Protection**: Sliding window mechanism to prevent replay attacks.
+*   **Architecture**: Client-Server model.
+*   **Network**: Uses `TUN` interface for Layer 3 tunneling.
+*   **Robustness**: Handles packet loss, reordering, and graceful shutdowns.
+*   **Scripts**: Helper scripts for easy network configuration and teardown.
 
-## Quickstart: Secure Deployment
+## Directory Structure
 
-### 1. Install Prerequisites
+*   `src/`: Source code.
+    *   `client/`: VPN Client implementation.
+    *   `server/`: VPN Server implementation.
+    *   `common/`: Shared libraries (Crypto, Packet building, TUN/UDP utils).
+*   `scripts/`: Helper bash scripts for setting up networking (IPs, NAT, routing).
+*   `Makefile`: Build system.
 
-```bash
-sudo apt-get update
-sudo apt-get install -y build-essential libssl-dev iproute2 iptables tcpdump iputils-ping
-```
+## Prerequisites
 
-### 2. Build & Install
+*   Linux OS with TUN/TAP support.
+*   `gcc`, `make`.
+*   `OpenSSL` development libraries (`libssl-dev` or similar).
 
-```bash
-make lint
-make
-sudo make install
-```
-
-### 3. Generate Keys
-
-```bash
-mkdir -p keys
-head -c 32 /dev/urandom > keys/psk.bin
-export AVPN_PSK_FILE=$(pwd)/keys/psk.bin
-```
-
-### 4. Server Network Setup
+## Building
 
 ```bash
-./scripts/server_net.sh --if tun0 --pub-if eth0 --ip 10.8.0.1/24 --net 10.8.0.0/24 --mtu 1400
+make all
 ```
 
-### 5. Client Network Setup
+This will produce `build/vpn_server` and `build/vpn_client`.
+
+## Usage
+
+### 1. Generate a Pre-Shared Key (PSK)
+
+Both client and server must share a 32-byte secret key.
+
+**On the Server:**
+```bash
+dd if=/dev/urandom of=vpn.psk bs=32 count=1
+export AVPN_PSK_FILE=$(pwd)/vpn.psk
+```
+
+**On the Client:**
+Securely copy `vpn.psk` from the server to the client.
+```bash
+export AVPN_PSK_FILE=$(pwd)/vpn.psk
+```
+
+### 2. Start the Server (Public IP: e.g., `1.2.3.4`)
 
 ```bash
-./scripts/client_net.sh --if tun0 --ip 10.8.0.2 --mtu 1400 --net 10.8.0.0/24 --server 10.8.0.1
+# Set environment variables
+export AVPN_TUN=tun0
+
+# Start the server binary
+./build/vpn_server
+
+# In a separate terminal, configure the server network (IPs, NAT)
+sudo ./scripts/server_net.sh --if tun0
 ```
 
-### 6. Start the VPN Binaries
-
-#### On server
+### 3. Start the Client
 
 ```bash
-export AVPN_PSK_FILE=$(pwd)/keys/psk.bin
-sudo vpn_server
+# Set environment variables
+export AVPN_TUN=tun0
+
+# Start the client binary (replace 1.2.3.4 with Server's Real IP)
+./build/vpn_client 1.2.3.4
+
+# In a separate terminal, configure the client network
+sudo ./scripts/client_net.sh --if tun0 --server 1.2.3.4
 ```
 
-#### On client
+### 4. Teardown
+
+To stop the VPN and clean up network interfaces/rules:
 
 ```bash
-export AVPN_PSK_FILE=$(pwd)/keys/psk.bin
-sudo vpn_client <SERVER_PUBLIC_IP>
+sudo ./scripts/teardown.sh --if tun0
 ```
 
-### 7. Test Connectivity
+## Testing
 
-On client:
+### Automated Integration Test (Local)
+The project includes an integration test script that uses **Network Namespaces** to simulate a complete client-server network on a single machine without needing external VMs.
 
 ```bash
-ping -c 3 10.8.0.1
+# Requires sudo to create namespaces
+make test
 ```
 
-On server:
+### Manual Verification
+After following the **Usage** steps above to connect a real client:
 
+**From Client:**
 ```bash
-ping -c 3 10.8.0.2
+# Ping the server's virtual IP
+ping 10.8.0.1
 ```
 
-### 8. Verify Encryption
+## Security Notes
 
-```bash
-tcpdump -ni any udp port 51820 -vv
-```
-
-### 9. Teardown & Cleanup
-
-```bash
-./scripts/teardown.sh --if tun0 --pub-if eth0 --net 10.8.0.0/24
-```
-
----
-
-## Folder Structure
-
-```text
-VPN/
-├─ README.md
-├─ Makefile
-├─ scripts/
-│  ├─ server_net.sh
-│  ├─ client_net.sh
-│  └─ teardown.sh
-├─ keys/
-│  └─ psk.bin        (32 bytes, random; .gitignore this)
-└─ src/
-   ├─ common/
-   │  ├─ proto.h
-   │  ├─ packet.h
-   │  ├─ packet.c
-   │  ├─ tun.h
-   │  ├─ tun.c
-   │  ├─ udp.h
-   │  ├─ udp.c
-   │  ├─ aead.h
-   │  ├─ aead_openssl.c
-   │  ├─ util.h
-   │  └─ util.c
-   ├─ server/
-   │  └─ vpn_server.c
-   └─ client/
-      └─ vpn_client.c
-```
-
----
-
-## Security & Deployment Notes
-
-- **OS:** Ubuntu 20.04+ (root required for TUN and iptables).
-- **Crypto:** AES‑256‑GCM, 12‑byte nonce, 16‑byte tag, PSK (32‑byte). Nonce counters reset on process restart; always rekey at startup.
-- **Threat Model:** Integrity/confidentiality on-path; replay defense (64‑pkt window). No DoS/ratelimiting, no cert PKI.
-- **Production:** Harden with DoS limits, session persistence, logging, and tests.
-
----
-
-## Performance & Troubleshooting
-
-- **MTU:** Default is 1400. If you see fragmentation, try `ip link set tun0 mtu 1380` on both sides.
-- **Throughput:** Use `iperf3` for performance testing.
-- **Troubleshooting:**
-   - PSK mismatch: Both sides must use the same `keys/psk.bin`.
-   - TUN not present: `ip addr show tun0`.
-   - Forwarding off: `sysctl net.ipv4.ip_forward`.
-   - NAT missing: `iptables -t nat -L -v | grep MASQUERADE`.
-   - Firewall: Ensure UDP 51820 is open.
-   - Wrong server IP: Use public IP.
-   - MTU issues: Lower to 1380.
-   - Packet path: `tcpdump -ni any -vv udp port 51820`.
-
-## Design Recap
-
-- **Data plane:** TUN ↔ (encrypt/decrypt) ↔ UDP
-- **Control plane:** HELLO → ASSIGN_IP; replay window; per-client counters
-- **Security:** AES‑256‑GCM with header as AAD; per-direction nonce counters
-- **Routing/NAT:** Linux tooling; minimal userspace logic
-
-## FAQ
-
-**Q:** Why UDP?
-**A:** Avoids TCP-over-TCP meltdown; simpler NAT traversal.
-
-**Q:** Why AES-GCM?
-**A:** OpenSSL EVP AES-GCM is widely available and secure.
-
-**Q:** Multiple clients?
-**A:** Yes; server supports up to 64 clients by default.
-
-**Q:** Production ready?
-**A:** Harden with handshake, identities/keys, rekeying, DoS limits, session persistence, logging, and tests.
+*   **Encryption**: Protocol uses AES-256-GCM.
+*   **Authentication**: All packets are authenticated. Handshake uses a minimal exchange to assign virtual IPs.
+*   **Privileges**: The binaries require `CAP_NET_ADMIN` (usually root) to open TUN devices.

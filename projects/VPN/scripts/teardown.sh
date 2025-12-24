@@ -3,6 +3,10 @@
 # Usage: teardown.sh [--if <tun>] [--pub-if <iface>] [--net <net>]
 set -euo pipefail
 
+# Get absolute path to script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/lib/common.sh"
+
 usage() {
   echo "Usage: $0 [--if <tun>] [--pub-if <iface>] [--net <net>]"
   echo "  --if <tun>      TUN device name (default: tun0)"
@@ -25,23 +29,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-log() { echo "[teardown] $*"; }
-
-if ! command -v ip &>/dev/null; then log "Missing 'ip' command"; exit 2; fi
-if ! command -v iptables &>/dev/null; then log "Missing 'iptables' command"; exit 2; fi
+check_deps ip iptables
 
 if sudo iptables -t nat -C POSTROUTING -s "$VPN_NET" -o "$PUB_IF" -j MASQUERADE 2>/dev/null; then
-  sudo iptables -t nat -D POSTROUTING -s "$VPN_NET" -o "$PUB_IF" -j MASQUERADE
-  log "Removed NAT MASQUERADE rule for $VPN_NET via $PUB_IF"
+  if sudo iptables -t nat -D POSTROUTING -s "$VPN_NET" -o "$PUB_IF" -j MASQUERADE; then
+      log "Removed NAT MASQUERADE rule for $VPN_NET via $PUB_IF"
+  else
+      log "Error: Failed to remove NAT rule"
+  fi
 else
   log "No NAT MASQUERADE rule to remove"
 fi
 
-if ip link show "$IF" &>/dev/null; then
-  sudo ip link del "$IF"
-  log "Deleted TUN device $IF"
-else
-  log "No TUN device $IF to delete"
-fi
+remove_tun "$IF"
 
 log "Teardown complete."

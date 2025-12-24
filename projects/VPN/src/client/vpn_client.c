@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <signal.h>
 #include "../common/tun.h"
 #include "../common/udp.h"
 #include "../common/aead.h"
@@ -21,6 +22,15 @@
 #include "../common/util.h"
 
 #define MAXPKT (65536U)
+
+/* Global running flag */
+static volatile bool running = true;
+
+static void handle_signal(int sig)
+{
+    (void)sig;
+    running = false;
+}
 
 /*
  * Perform handshake with server to get client ID and virtual IP.
@@ -31,47 +41,78 @@ static int handshake(int udp_fd, struct sockaddr_in *srv, const uint8_t *psk, ui
     uint64_t send_ctr = 1U;
     uint8_t outbuf[MAXPKT], inbuf[MAXPKT], plain[MAXPKT];
     hello_t he;
+    struct pollfd pfd;
+    int retries = 5;
+    
     he.want_id = htonl(0U);
-    size_t hlen = avpn_build_encrypted(outbuf, sizeof(outbuf), (uint8_t)MSG_HELLO,
-                                       0U, send_ctr++, psk,
-                                       (const uint8_t *)&he, sizeof(he));
-    if (hlen == 0)
+    pfd.fd = udp_fd;
+    pfd.events = POLLIN;
+
+    while (running && retries > 0)
     {
-        fprintf(stderr, "[error] Failed to build handshake packet\n");
-        return -1;
-    }
-    if (udp_sendto(udp_fd, outbuf, hlen, srv) < 0)
-    {
-        fprintf(stderr, "[error] Failed to send handshake packet\n");
-        return -1;
-    }
-    for (;;)
-    {
-        struct sockaddr_in src;
-        ssize_t r = udp_recvfrom(udp_fd, inbuf, sizeof(inbuf), &src);
-        if (r > 0)
+        size_t hlen = avpn_build_encrypted(outbuf, sizeof(outbuf), (uint8_t)MSG_HELLO,
+                                           0U, send_ctr++, psk,
+                                           (const uint8_t *)&he, sizeof(he));
+        if (hlen == 0)
         {
-            size_t plen = 0U;
-            uint32_t cid = 0U;
-            uint64_t ctr = 0U;
-            if (avpn_open_encrypted(inbuf, (size_t)r, (uint8_t)MSG_ASSIGN,
-                                    &cid, psk, plain, &plen, &ctr) == 0)
+            fprintf(stderr, "[error] Failed to build handshake packet\n");
+            return -1;
+        }
+        if (udp_sendto(udp_fd, outbuf, hlen, srv) < 0)
+        {
+            fprintf(stderr, "[error] Failed to send handshake packet\n");
+            /* Don't return -1 immediately, retry */
+        }
+        else
+        {
+            printf("[info] Sent handshake request (attempt %d/5)...\n", 6 - retries);
+        }
+
+        /* Wait for response with timeout */
+        int poll_res = poll(&pfd, 1, 2000); /* 2 seconds timeout */
+        if (poll_res < 0)
+        {
+            if (!running) return -1;
+            perror("poll");
+            return -1;
+        }
+        else if (poll_res > 0)
+        {
+            if (pfd.revents & POLLIN)
             {
-                if (plen < sizeof(assign_t))
+                struct sockaddr_in src;
+                ssize_t r = udp_recvfrom(udp_fd, inbuf, sizeof(inbuf), &src);
+                if (r > 0)
                 {
-                    fprintf(stderr, "[error] Invalid ASSIGN packet size\n");
-                    return -1;
+                    size_t plen = 0U;
+                    uint32_t cid = 0U;
+                    uint64_t ctr = 0U;
+                    if (avpn_open_encrypted(inbuf, (size_t)r, (uint8_t)MSG_ASSIGN,
+                                            &cid, psk, plain, &plen, &ctr) == 0)
+                    {
+                        if (plen < sizeof(assign_t))
+                        {
+                            fprintf(stderr, "[error] Invalid ASSIGN packet size\n");
+                            continue;
+                        }
+                        const assign_t *asg = (const assign_t *)plain;
+                        if (my_id)
+                            *my_id = cid;
+                        if (my_virt_ip)
+                            *my_virt_ip = ntohl(asg->assigned_ip);
+                        printf("[info] Received ASSIGN: id=%u, virt_ip=%u\n", cid, ntohl(asg->assigned_ip));
+                        return 0;
+                    }
                 }
-                const assign_t *asg = (const assign_t *)plain;
-                if (my_id)
-                    *my_id = cid;
-                if (my_virt_ip)
-                    *my_virt_ip = ntohl(asg->assigned_ip);
-                printf("[info] Received ASSIGN: id=%u, virt_ip=%u\n", cid, ntohl(asg->assigned_ip));
-                return 0;
             }
         }
+        else
+        {
+            printf("[info] Timed out waiting for response.\n");
+        }
+        retries--;
     }
+    
     return -1;
 }
 
@@ -87,10 +128,12 @@ static void vpn_loop(int tun_fd, int udp_fd, struct sockaddr_in *srv, const uint
     pfds[0].events = POLLIN;
     pfds[1].fd = udp_fd;
     pfds[1].events = POLLIN;
-    for (;;)
+    
+    while (running)
     {
-        if (poll(pfds, 2, -1) < 0)
+        if (poll(pfds, 2, 1000) < 0)
         {
+            if (!running) break;
             perror("poll");
             break;
         }
@@ -154,7 +197,16 @@ int main(int argc, char **argv)
     int tun_fd = -1, udp_fd = -1;
     struct sockaddr_in srv;
     uint32_t my_id = 0U, my_virt_ip = 0U;
+    
+    /* Signal handling */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_signal;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
     memset(&srv, 0, sizeof(srv));
+    
     printf("[debug] Initializing VPN client\n");
     if (argc < 2)
     {
@@ -226,6 +278,8 @@ int main(int argc, char **argv)
     printf("[info] Handshake successful: my_id=%u, my_virt_ip=%u\n", my_id, my_virt_ip);
 
     vpn_loop(tun_fd, udp_fd, &srv, psk, my_id);
+    
+    printf("[info] Client shutting down\n");
     secure_memzero(psk, sizeof(psk));
     close(udp_fd);
     close(tun_fd);

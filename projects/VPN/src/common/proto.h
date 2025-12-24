@@ -19,6 +19,7 @@
 #define AVPN_NONCE_LEN  (12u)
 #define AVPN_TAG_LEN    (16u)
 #define AVPN_PORT       (51820u)
+#define AVPN_MAX_PAYLOAD (65500u) /* Safe max payload size (under 64k) */
 
 /* Message types */
 #define MSG_HELLO      (1u)
