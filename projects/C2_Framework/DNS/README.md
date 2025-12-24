@@ -594,9 +594,3 @@ C&C>
 [+] Command received: whoami
 [*] Executing: whoami
 ```
-
-## License & Disclaimer
-
-**⚠️ EDUCATIONAL USE ONLY** - For security research and authorized penetration testing only.
-
-See [LICENSE](LICENSE) for details. Built with [Scapy](https://scapy.net/).

