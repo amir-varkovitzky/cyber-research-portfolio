@@ -31,6 +31,7 @@
 !LICENSE
 # Don't ignore makefile
 !makefile
+!Makefile
 # Don't ignore Dockerfile
 !Dockerfile
 # Don't ignore nginx.conf
